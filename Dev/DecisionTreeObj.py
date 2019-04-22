@@ -26,7 +26,7 @@ class DecisionTreeObj(object):
         arrayDict = self.valueDict.copy()
         self.paramName = objectName
         newValueMatrix = []
-        finalValueMatrix = valueMatrix.copy()
+        finalValueMatrix = valueMatrix[:]
         if not(valueMatrix is None):  
             if self.leftVal is None:
                 valToCheck = 0

@@ -21,7 +21,7 @@ def calcInfoGain(infoArray, totPos, totNeg):
 def calcEntropy(positives, negatives):
     if ((positives == 0) | (negatives == 0)):
         return 0
-    positiveRatio = float(positives/(positives+negatives))
+    positiveRatio = float(positives)/float(positives+negatives)
     negativeRatio = 1 - positiveRatio
     entropyVal = -1 * positiveRatio * math.log(positiveRatio,2) - negativeRatio * math.log(negativeRatio,2)
     return entropyVal
@@ -172,33 +172,31 @@ def getTestValues(dtRoot, testAminoSequence):
 # How to get a singular file:
 # https://stackoverflow.com/questions/13223737/how-to-read-a-file-in-other-directory-in-python
 
-if __name__ == "__main__":
+def implementDecisionTree():
     trainAminoString = ""
     trainBuriedExposedString = ""
-    testAminoString = ""
-    trueBuriedExposedString = ""
-    professorAminoString = []
-    professorSAFiles = []
+    myfilepath = os.path.abspath(__file__)
+    fastaPath = os.path.abspath(os.path.join(myfilepath, '..', '..', '5970_6970_SP_19_PROJECT_5', 'fasta'))
+    saPath = os.path.abspath(os.path.join(myfilepath, '..', '..', '5970_6970_SP_19_PROJECT_5', 'sa'))
     fileCounter = 0
-    for file in os.listdir(sys.argv[1]):
+    fileList = os.listdir(fastaPath)
+    for file in fileList:
         filename = os.path.basename(file)
-        fastaFile = open(sys.argv[1] + filename, 'r')
+        fastaFile = open(os.path.join(fastaPath, filename), 'r')
         fastaLine = ""
         saLine = ""
         for i, line in enumerate(fastaFile):
             fastaLine = line
         saFilename = filename[:4] + '.sa'
-        if saFilename != '.DS_.sa':
+        if saFilename.endswith('.sa'):
             if(fileCounter < 150):
-                saFile = open(sys.argv[2]+saFilename, 'r')
+                saFile = open(os.path.join(saPath,saFilename), 'r')
                 if saFile == '.DS_':
                     continue
                 for i, line in enumerate(saFile):
                     saLine = line
                     if saLine[0] == '>':
                         saLine = saLine[5:len(saLine)]
-            else:
-                professorSAFiles.append(saFilename)
             fastaLine = fastaLine[0:len(fastaLine) - 1]
             if fastaLine[0] == '>':
                 fastaLine = fastaLine[5:len(fastaLine)]
@@ -206,45 +204,28 @@ if __name__ == "__main__":
                 trainAminoString += fastaLine
                 trainBuriedExposedString += saLine
                 fileCounter+=1
-            elif(fileCounter < 150):
-                testAminoString += fastaLine
-                trueBuriedExposedString += saLine
-                fileCounter+=1
-            else:
-                professorAminoString.append(fastaLine)
     trainingMatrix = getBEValues(trainAminoString, trainBuriedExposedString)
     arrayDict = getBaseArrayDict()
     rootObject = dtobj.DecisionTreeObj("root", trainingMatrix, arrayDict)
     calculateDecisionTree(rootObject)
-    expectedBuriedExposedString = getTestValues(rootObject, testAminoString)
-    truePos = 0.0
-    trueNeg = 0.0
-    falsePos = 0.0
-    falseNeg = 0.0
-    for i in range(0, len(testAminoString)):
-        if expectedBuriedExposedString[i] == 'B':
-            if trueBuriedExposedString[i] == 'B':
-                trueNeg+=1.0
+    returnArray = dict()
+    predictedBur = 0
+    predictedExp = 0
+    for filetrain in fileList:
+        fastaLine = ""
+        filename = os.path.basename(filetrain)
+        fastaFile = open(os.path.join(fastaPath, filename), 'r')
+        for i, line in enumerate(fastaFile):
+            fastaLine = line
+        fastaLine = fastaLine[0:len(fastaLine) - 1]
+        if fastaLine[0] == '>':
+            fastaLine = fastaLine[5:len(fastaLine)]
+        expectedBuriedExposedString = getTestValues(rootObject, fastaLine)
+        for i in range(0, len(fastaLine)):
+            if expectedBuriedExposedString[i] == 'B':
+                predictedBur += 1
             else:
-                falseNeg+=1.0
-        else:
-            if trueBuriedExposedString[i] == 'B':
-                falsePos+=1.0
-            else:
-                truePos+=1.0
-    accuracy = (truePos + trueNeg)/len(expectedBuriedExposedString)
-    precision = truePos/(truePos + falsePos)
-    recall = truePos/(truePos+falseNeg)
-    f1score = 2*(precision*recall)/(precision+recall)
-    mccscore = (truePos * trueNeg - falsePos * falseNeg)/math.sqrt((truePos + falsePos) * (truePos + falseNeg) * (trueNeg + falsePos) * (trueNeg + falseNeg))
-    print("True Pos: %d \n True Neg: %d \n False Pos: %d \n False Neg: %d \n Accuracy: %f \n Precision: %f \n Recall: %f \n F1: %f \n MCC: %f" % (truePos, trueNeg, falsePos, falseNeg, accuracy, precision, recall, f1score, mccscore))
-    for i in range(0, len(professorAminoString)):
-        testResult = getTestValues(rootObject, professorAminoString[i])
-        print("Provided String: %s\nDT Output      : %s\n" %(professorAminoString[i], testResult))
-        if testResult.count('B') < 3*testResult.count('E'):
-            print("The provided amino acid string is classified as a primarily exposed Protein")
-        else:
-            print("The provided amino acid string is classified as a primarily buried Protein")
-        saFile = open(sys.argv[2]+saFilename, 'w+')
-        saFile.write('>%s%s' %(saFilename, getTestValues(rootObject, professorAminoString[i])))
-        saFile.close()
+                predictedExp += 1
+        returnArray[filename[:4]] = [float(predictedBur)/len(fastaLine),float(predictedExp)/len(fastaLine)]
+        predictedBur = predictedExp = 0
+    return returnArray
